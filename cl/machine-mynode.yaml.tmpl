@@ -1,0 +1,46 @@
+---
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys: ${ssh_keys}
+storage:
+  files:
+    - path: /home/core/works
+      filesystem: root
+      mode: 0755
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+          hostname="$(hostname)"
+          echo My name is ${name} and the hostname is $${hostname}
+  filesystems:
+    - name: data
+      mount:
+        device: /dev/vdb
+        format: btrfs
+        wipe_filesystem: true
+        label: data
+systemd:
+  units:
+    - name: var-lib-docker.mount
+      enable: true
+      contents: |
+        [Unit]
+        Description=Mount ephemeral to /var/lib/docker
+        Before=local-fs.target
+        [Mount]
+        What=/dev/disk/by-label/data
+        Where=/var/lib/docker
+        Type=btrfs
+        Options=rw,relatime,compress=zstd:3,space_cache=v2
+        [Install]
+        WantedBy=local-fs.target
+    - name: docker.service
+      enabled: true
+      dropins:
+        - name: 10-wait-docker.conf
+          contents: |
+            [Unit]
+            After=var-lib-docker.mount
+            Requires=var-lib-docker.mount
